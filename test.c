@@ -37,38 +37,22 @@ void *thread_fun(void *ThreadID){
     int rand_i = rand()%4; // random (0-4) number of operations
     
     for(int i = 0; i< rand_i; i++){
-        random = (rand()%(1000)) + 1; 
+        random = (rand()%(9)) + 1; 
         printf("\n >>> Thread: %ld, Inserting page number: %d \n",tid, random);
 
         pthread_spin_lock(&hashtbl_lock);
         QNode* reqPage = hash->array[random];
-        // printf("\n Looking for page number: %d in hashtbl %p\n",random,reqPage);
-        // pthread_spin_unlock(&hashtbl_lock);
 
         if (reqPage == NULL) {
             QNode* new_allocate = allocate_node(q, hash, random);  
             // Add page entry to hash also
-            // pthread_spin_lock(&hashtbl_lock);
-            hash->array[random] = new_allocate;
-            // pthread_spin_unlock(&hashtbl_lock); 
+            hash->array[random] = new_allocate; 
         }
-
         else            
             access_node(q,hash,reqPage);
     
         pthread_spin_unlock(&hashtbl_lock);   
-        
-	    // else if (reqPage == q->front) // not needed here can be done with access
-		//     printf(" *** Page number: %d already infront of the cache \n",reqPage->pageNumber);
-	
-        // page is there and not at front, change pointer
-	    // else if (reqPage != q->front){ // just use else without condition.
-        //     access_node(q,hash,reqPage);
-        // }
-
-        // ReferencePage(q, hash, random);
-        sleep(pow(5.0, -3));  //sleeping for 5 nano seconds
-    
+        sleep(pow(5.0, -3));  //sleeping for 5 milliseconds
     }
     printf("\n x--------- Thread: %ld job done-------------x \n", tid);    
     return NULL;
@@ -100,12 +84,6 @@ int main() {
         return 1;
     }
 
-    // if (pthread_spin_init(&dequeue_lock, NULL) != 0) {
-    //     printf("\n spin dequeue has failed\n");
-    //     return 1;
-    // }
-
-    // using 6 threads
    for( i = 0; i < THREADS; i++ ) {
         printf("\n main() : creating thread: %d \n",i);
         rc = pthread_create(&threads[i], NULL, thread_fun, (void *)i);
@@ -118,7 +96,6 @@ int main() {
     for( i = 0; i < THREADS; i++ ){
         pthread_join(threads[i], NULL);
     }
-
 
     pthread_spin_destroy(&LRU_lock);
     pthread_spin_destroy(&buffer_lock);
