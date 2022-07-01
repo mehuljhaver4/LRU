@@ -5,7 +5,7 @@
 #include <pthread.h>
 #include <unistd.h>
 #include <math.h>
-#include "test.h"
+#include "utils.h"
 
 Queue* q;
 Hash* hash;
@@ -13,20 +13,23 @@ Hash* hash;
 void print_buffer_pool(buffer_node *root) {
     printf("\n*****Block start: %p ****\n", buffer_pool_ptr);
     buffer_node *temp = root;
-    while(temp!= NULL) {
-         printf("\nTemp: %p, Temp->value: %d\n ",temp,temp->value);
-         temp = temp->next;
+    int buf_counter = buffer_count;
+    while(buf_counter){
+        printf("\nTemp: %p, Temp->value: %d\n ",temp,temp->value);
+        buf_counter--;
+        temp = temp->next;
          }
     printf("NULL\n");
 }
 
-void PrintResult(Queue* Q, Hash* H){
-	printf("PageNumber: %d, Address: %p\n", Q->front->pageNumber, Q->front);
-    while(Q->front->next!= NULL){
-        printf("PageNumber: %d, Address: %p\n", Q->front->next->pageNumber, Q->front->next);
-        Q->front->next = Q->front->next->next;
-        }  
+void DisplayCache(Queue* Q, Hash* H) {
+    printf("\n\n****Final cache****\n\n ");
+    QNode* temp = Q->front;
+    while(temp) {
+        printf("PageNumber: %d, Address: %p\n", temp->pageNumber, temp);
+        temp = temp->next;
     }
+}
 
 void *thread_fun(void *ThreadID){
     
@@ -36,21 +39,23 @@ void *thread_fun(void *ThreadID){
     printf("\n********** Using thread: %ld *************\n", tid);
     int rand_i = rand()%4; // random (0-4) number of operations
     
-    for(int i = 0; i< rand_i; i++){
-        random = (rand()%(9)) + 1; 
-        printf("\n >>> Thread: %ld, Inserting page number: %d \n",tid, random);
+
+    // inserting 1,2,3,4,5,6,7,8,9
+    for(int i = 1; i< 10; i++){
+        // random = (rand()%(10)) + 1; 
+        printf("\n >>> Thread: %ld, Inserting page number: %d \n",tid, i);
 
         pthread_spin_lock(&hashtbl_lock);
-        QNode* reqPage = hash->array[random];
+        QNode* reqPage = hash->array[i];
 
         if (reqPage == NULL) {
-            QNode* new_allocate = allocate_node(q, hash, random);  
-            // Add page entry to hash also
-            hash->array[random] = new_allocate; 
+            QNode* new_allocate = allocate_node(q, hash, i);  
+            hash->array[i] = new_allocate; // Add page entry to hash also
         }
-        else            
+
+        else             
             access_node(q,hash,reqPage);
-    
+
         pthread_spin_unlock(&hashtbl_lock);   
         sleep(pow(5.0, -3));  //sleeping for 5 milliseconds
     }
@@ -93,21 +98,34 @@ int main() {
       }
    } 
 
-    for( i = 0; i < THREADS; i++ ){
+    for( i = 0; i < THREADS; i++ )
         pthread_join(threads[i], NULL);
-    }
-
+    
     pthread_spin_destroy(&LRU_lock);
     pthread_spin_destroy(&buffer_lock);
     pthread_spin_destroy(&hashtbl_lock);
 
-    printf("\n\n****Final cache****\n\n ");
-    PrintResult(q,hash);
+    DisplayCache(q,hash);
 
-    // QNode* free = deQueue(q);
-    // printf("delete node is at %p and value %d",free,free->pageNumber);
-    // printf("\n\n****Final cache after one free operation****\n\n ");
-    // PrintResult(q,hash);
+    //deleting 1,5,9
+    
+    // QNode* delPage1 = hash->array[1];
+    // buffer_node* free_buffer1 = free_node(q,delPage1);
+    // printf("Freed buffer %p\n",free_buffer1);
+    // put_buffer(&root,free_buffer1);
+
+    QNode* delPage5 = hash->array[6];
+    buffer_node* free_buffer5 = free_node(q,delPage5);
+    printf("Freed buffer %p\n",free_buffer5);
+    put_buffer(&root,free_buffer5);
+
+    QNode* delPage9 = hash->array[10];
+    buffer_node* free_buffer9 = free_node(q,delPage9);
+    printf("Freed buffer %p\n",free_buffer9);
+    put_buffer(&root,free_buffer9);
+
+
+    DisplayCache(q,hash);
 
     return SUCCESS;
 }

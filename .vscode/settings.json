@@ -76,7 +76,14 @@
         "stdlib.h": "c",
         "queue.h": "c",
         "stdbool.h": "c",
-        "stdatomic.h": "c"
+        "stdatomic.h": "c",
+        "lru.h": "c",
+        "utils.h": "c",
+        "stdint.h": "c",
+        "stdio.h": "c",
+        "string.h": "c",
+        "pthread.h": "c",
+        "errno.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

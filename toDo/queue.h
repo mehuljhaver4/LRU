@@ -1,5 +1,5 @@
 #include "utils.h"
-#include "queue.h"
+#include "LRU.h"
 
 // A Queue (A FIFO collection of Queue Nodes)
 typedef struct Queue {
@@ -8,11 +8,9 @@ typedef struct Queue {
 	QNode *front, *rear;
 } Queue;
 
-Queue* q;
-
 Queue* createQueue(int numberOfFrames)
 {
-	Queue* queue = (Queue*)malloc(task_count*sizeof(Queue));
+	Queue* queue = (Queue*)malloc(CACHESPACE*sizeof(Queue));
 
 	// The queue is empty
 	queue->count = 0;

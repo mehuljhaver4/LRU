@@ -1,102 +1,25 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdbool.h>
-#include <pthread.h>
-#include <assert.h>
-#include <time.h>
-#include <sys/sysinfo.h>
-#include <sys/queue.h>
-#include <stdatomic.h>
-#include <stdint.h>
+#include "LRU.h"
+// #include "bufferPool.h"
 
-#define SUCCESS 0
-#define FAIL -1
-#define CACHESPACE 10240
-#define HASHSPACE 1024
-#define THREADS 1024
-#define BILLION  1000000000L
-atomic_int buffer_count;
-
-// #define CACHESPACE 4
-// #define HASHSPACE 10
-// #define THREADS 6
-// #define BILLION  1000000000L
-// atomic_int buffer_count;
-
-
-pthread_spinlock_t LRU_lock;
-pthread_spinlock_t buffer_lock;
-pthread_spinlock_t hashtbl_lock;
-
-void *buffer_pool_ptr = NULL; 
-
-typedef struct QNode {
-	struct QNode *prev, *next;
-	unsigned pageNumber; 
-} QNode;
-
-// A Queue (A FIFO collection of Queue Nodes)
-typedef struct Queue {
-	unsigned count; // Number of filled frames
-	unsigned numberOfFrames; // total number of frames
-	QNode *front, *rear;
-} Queue;
-
-// A hash (Collection of pointers to Queue Nodes)
-typedef struct Hash {
-	int capacity; // how many pages can be there
-	QNode** array; // an array of queue nodes
-} Hash;
-
-typedef struct buffer_node {
-    int value;
-	struct buffer_node *prev, *next;
-} buffer_node;
-
-//defining root and ref root globally to use in other functions
-buffer_node* root = NULL;
-buffer_node* ref_node = NULL;
-
-// Append buffers to the memory pool
-buffer_node* append_buffer(buffer_node **ref_node, buffer_node **root, int size)
+Queue* createQueue(int numberOfFrames)
 {
-    buffer_node* newNode = *ref_node;
-    buffer_node* lastNode = root;
-    newNode->next = NULL;
+	Queue* queue = (Queue*)malloc(CACHESPACE*sizeof(Queue));
 
-    while(lastNode->next != NULL) {
-        lastNode = lastNode->next;
-    }
+	// The queue is empty
+	queue->count = 0;
+	queue->front = queue->rear = NULL;
 
-    lastNode->next = newNode;
-    newNode->prev = lastNode;
-    return newNode;
+	// Number of frames that can be stored in memory
+	queue->numberOfFrames = numberOfFrames;
+
+	return queue;
 }
 
-
-// create a memory pool to append buffers for later use
-int buffer_pool() {
-    buffer_pool_ptr = calloc(CACHESPACE ,sizeof(buffer_node));
-    printf("\n Memory pool created\n");
-    root = buffer_pool_ptr;
-    
-	if(!buffer_pool_ptr) {
-        printf("\nBuffer memory allocation failed\n");
-        return FAIL;
-    }
-    // using a ref node to update the pointer after incrementing
-    ref_node = root; 
-
-    for(int i = 0; i< CACHESPACE; i++) {
-        append_buffer(&ref_node, &root, sizeof(buffer_node));
-		buffer_count++;
-        ref_node++;
-    }
-    return SUCCESS;
+// A utility function to check if queue is empty
+int isQueueEmpty(Queue* queue)
+{
+	return queue->rear == NULL;
 }
-
-
 
 // A utility function to delete a frame from queue
 QNode* deQueue(Queue* queue)
@@ -112,54 +35,6 @@ QNode* deQueue(Queue* queue)
     return temp;
 }
 
-// buffer_node* free_node(Queue* queue) {
-// 	printf("wjhgfuwef");
-// 	buffer_node* lastNode = root;
-// 	printf("aaaaaa");
-// 	QNode* freed = deQueue(queue);
-// 	printf("bbbbbb");
-
-// 	freed->next = NULL;
-// 	while(lastNode->next != NULL) {
-// 		lastNode = lastNode->next;
-// 	}
-
-// 	lastNode->next = freed;
-// 	freed->prev = lastNode;
-// 	return freed;
-// }
-
-// A utility function to get a buffer from buffer pool
-QNode* get_buffer(buffer_node* root, Queue* queue, Hash* hash)
-{
-    buffer_node* lastNode = root;
-    QNode* temp = NULL;
-
-	//if only one node present.
-	if (lastNode->next == NULL) {
-        temp = (QNode *) lastNode;
-        temp->prev = NULL;
-		buffer_count--;
-        return temp;
-    }
-
-    // when multiple nodes are preset get the last buffer
-    // make changes to the second last buffer
-    while (lastNode->next != NULL) {
-        if (lastNode->next->next == NULL) {
-            
-			temp = (QNode *)lastNode->next; //temp gets the last node
-            temp->prev = NULL; // prev link becomes null
-            lastNode->next = NULL;
-
-			buffer_count--;
-            return temp;
-        }
-        lastNode = lastNode->next;
-    }  
-}
-
-
 
 QNode* newQNode(Queue* queue, Hash* hash, unsigned pageNumber)
 {   
@@ -167,7 +42,9 @@ QNode* newQNode(Queue* queue, Hash* hash, unsigned pageNumber)
     if (buffer_count != 0 ) { 
         //get_buffer from buffer pool
 		pthread_spin_lock(&buffer_lock);
+
         newBuff = get_buffer(root, queue, hash);
+		
 		pthread_spin_unlock(&buffer_lock);
 
         newBuff->next = root->next;
@@ -179,51 +56,15 @@ QNode* newQNode(Queue* queue, Hash* hash, unsigned pageNumber)
 	else{ 
 			
 		pthread_spin_lock(&LRU_lock);
+
 		hash->array[queue->rear->pageNumber] = NULL;
 		newBuff = deQueue(queue);
 		newBuff->pageNumber = pageNumber;
+		
 		pthread_spin_unlock(&LRU_lock);
 		// printf("-> Address of new node due to no new buffers in pool is: %p // content: %d \n",newBuff,newBuff->pageNumber);
 	}
 	return newBuff;
-}
-
-Queue* createQueue(int numberOfFrames)
-{
-	Queue* queue = (Queue*)malloc(task_count*sizeof(Queue));
-
-	// The queue is empty
-	queue->count = 0;
-	queue->front = queue->rear = NULL;
-
-	// Number of frames that can be stored in memory
-	queue->numberOfFrames = numberOfFrames;
-
-	return queue;
-}
-
-// A utility function to create an empty Hash of given capacity
-Hash* createHash(int capacity)
-{
-	// Allocate memory for hash
-	Hash* hash = (Hash*)malloc(sizeof(Hash));
-	hash->capacity = capacity;
-
-	// Create an array of pointers for referring queue nodes
-	hash->array = (QNode**)malloc(hash->capacity * sizeof(QNode*));
-
-	// Initialize all hash entries as empty
-	for (int i = 0; i < hash->capacity; ++i)
-		hash->array[i] = NULL;
-
-	return hash;
-}
-
-
-// A utility function to check if queue is empty
-int isQueueEmpty(Queue* queue)
-{
-	return queue->rear == NULL;
 }
 
 
@@ -239,14 +80,14 @@ QNode* allocate_node(Queue* queue, Hash* hash, unsigned pageNumber) {
 
 		if( clock_gettime( CLOCK_REALTIME, &start_1) == -1 ) {
 			perror( "clock gettime" );
-			return EXIT_FAILURE;
+			// return EXIT_FAILURE;
 		}
 
 		pthread_spin_lock(&LRU_lock);
 
         if( clock_gettime( CLOCK_REALTIME, &stop_1) == -1 ) {
             perror( "clock gettime" );
-            return EXIT_FAILURE;
+            // return EXIT_FAILURE;
         }
 
 		temp->next = queue->front;
@@ -264,13 +105,13 @@ QNode* allocate_node(Queue* queue, Hash* hash, unsigned pageNumber) {
 
 		if( clock_gettime( CLOCK_REALTIME, &stop_2) == -1 ) {
 				perror( "clock gettime" );
-				return EXIT_FAILURE;
+				// return EXIT_FAILURE;
 		}
 		pthread_spin_unlock(&LRU_lock);
 		
 		if( clock_gettime( CLOCK_REALTIME, &stop_3) == -1 ) {
 				perror( "clock gettime" );
-				return EXIT_FAILURE;
+				// return EXIT_FAILURE;
 		}
 
 		accum_1 = (uint64_t)(( stop_1.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_1.tv_nsec - start_1.tv_nsec);
@@ -290,14 +131,14 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage) { //change parameters
 
 		if( clock_gettime( CLOCK_REALTIME, &start_1) == -1 ) {
 			perror( "clock gettime" );
-			return EXIT_FAILURE;
+			// return EXIT_FAILURE;
 		}
 
         pthread_spin_lock(&LRU_lock);
 
         if( clock_gettime( CLOCK_REALTIME, &stop_1) == -1 ) {
             perror( "clock gettime" );
-            return EXIT_FAILURE;
+            // return EXIT_FAILURE;
         }
 		
 		// if the requested pagenumber is already infront of queue do nothing
@@ -329,13 +170,13 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage) { //change parameters
 
 		if( clock_gettime( CLOCK_REALTIME, &stop_2) == -1 ) {
 				perror( "clock gettime" );
-				return EXIT_FAILURE;
+				// return EXIT_FAILURE;
 		}
         pthread_spin_unlock(&LRU_lock);
 
         if( clock_gettime( CLOCK_REALTIME, &stop_3) == -1 ) {
                 perror( "clock gettime" );
-                return EXIT_FAILURE;
+                // return EXIT_FAILURE;
         }
 
 		accum_1 = (uint64_t)(( stop_1.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_1.tv_nsec - start_1.tv_nsec);
@@ -344,4 +185,28 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage) { //change parameters
         accum_4 = (uint64_t)(( stop_3.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - start_1.tv_nsec);
 
 		printf("> Time taken b/w lock to *ACCESS* page number: %d is lock : %ld main_logic : %ld unlock : %ld access call : %ld\n",queue->front->pageNumber, accum_1, accum_2, accum_3, accum_4);
+}
+
+// A utility function to delete a pageNumber from cache
+QNode* free_node(Queue* queue, QNode* reqPage) {
+
+	//when cache is empty or reqPage is NULL
+	if (queue->front == NULL || reqPage == NULL)
+		printf("ERROR\n"); //add error statement later
+	else {
+		// if reqPage is the root
+		if (queue->front == reqPage)
+			queue->front = reqPage->next;
+		
+		// Change next only if node to be deleted is NOT the last node
+		if (reqPage->next != NULL)
+			reqPage->next->prev = reqPage->prev;
+	
+		// Change prev only if node to be deleted is NOT the first node
+		if (reqPage->prev != NULL)
+			reqPage->prev->next = reqPage->next;
+	}
+
+	printf("\nPage requested to be deleted is at %p and is %d \n",reqPage,reqPage->pageNumber);
+	return reqPage;
 }
