@@ -15,14 +15,14 @@ void print_buffer_pool(buffer_node *root) {
     buffer_node *temp = root;
     int buf_counter = buffer_count;
     while(buf_counter){
-        printf("\nTemp: %p, Temp->value: %d\n ",temp,temp->value);
+        printf("\nBuffer %d: %p\n",buf_counter,temp);
         buf_counter--;
         temp = temp->next;
          }
     printf("NULL\n");
 }
 
-void DisplayCache(Queue* Q, Hash* H) {
+void DisplayCache(Queue* Q) {
     printf("\n\n****Final cache****\n\n ");
     
     if (isQueueEmpty(Q)){
@@ -76,7 +76,7 @@ int main() {
     pthread_t threads[THREADS];
     int rc;
     int i;
-    q = createQueue(CACHESPACE);
+    q = createQueue();
     hash = createHash(HASHSPACE);
 
     if (pthread_spin_init(&buffer_lock, 0) != 0) {
@@ -110,12 +110,11 @@ int main() {
     pthread_spin_destroy(&buffer_lock);
     pthread_spin_destroy(&hashtbl_lock);
 
-    DisplayCache(q,hash);
+    DisplayCache(q);
 
     // delete 6
     QNode* delPage = hash->array[6];
     buffer_node* free_buffer = (buffer_node *)free_node(q,delPage);
-    printf("Freed buffer %p\n",free_buffer);
     put_buffer(&root,free_buffer);
 
     // insert 5
@@ -131,11 +130,9 @@ int main() {
     // delete 10
     QNode* delPage2 = hash->array[10];
     buffer_node* free_buffer2 = (buffer_node *)free_node(q,delPage2);
-    printf("Freed buffer %p\n",free_buffer2);
     put_buffer(&root,free_buffer2);
 
-    DisplayCache(q,hash);
-
+    DisplayCache(q);
 
     return SUCCESS;
 }

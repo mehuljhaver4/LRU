@@ -85,7 +85,8 @@
         "pthread.h": "c",
         "errno.h": "c",
         "utils2.h": "c",
-        "bufferpool.h": "c"
+        "bufferpool.h": "c",
+        "assert.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }
