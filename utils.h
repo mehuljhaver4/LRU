@@ -64,7 +64,7 @@ buffer_node* ref_node = NULL;
 buffer_node* append_buffer(buffer_node **ref_node, buffer_node **root)
 {
     buffer_node* newNode = *ref_node;
-    buffer_node* lastNode = root;
+    buffer_node* lastNode = (buffer_node *)root;
     newNode->next = NULL;
 
     while(lastNode->next != NULL) {
@@ -99,10 +99,10 @@ int buffer_pool() {
 
 // A utility function to add the buffer back to the buffer pool
 // after deleting a pageNumber from cache.
-buffer_node* put_buffer(buffer_node **root, QNode* free_buffer) {
+buffer_node* put_buffer(buffer_node **root, buffer_node* free_buffer) {
 	pthread_spin_lock(&buffer_lock);
 
-	buffer_node* new_buffer = (buffer_node*) free_buffer; //might be a porblem here
+	buffer_node* new_buffer = free_buffer; //might be a porblem here
 	buffer_node* lastNode = *root;
 
 	while (lastNode->next != NULL) {
@@ -175,7 +175,7 @@ QNode* newQNode(Queue* queue, Hash* hash, unsigned pageNumber)
 		
 		pthread_spin_unlock(&buffer_lock);
 
-        newBuff->next = root->next;
+        newBuff->next = (QNode *)root->next;
         newBuff->prev = NULL;
         newBuff->pageNumber = pageNumber;
         // printf("-> Address of new node: %p // content: %d \n",newBuff,newBuff->pageNumber);
@@ -237,122 +237,122 @@ Hash* createHash(int capacity)
 // A utility function to allocate pageNumber to the cache
 QNode* allocate_node(Queue* queue, Hash* hash, unsigned pageNumber) {
 		
-		// record the time taken before applying the lock
-		struct timespec start_1, stop_1, stop_2, stop_3;
-        uint64_t accum_1 = 0, accum_2 = 0, accum_3 = 0, accum_4 = 0;
-		
-		// Create a new node with given page number,
-		// And add the new node to the front of queue
-		QNode* temp = newQNode(queue, hash, pageNumber);
+	// record the time taken before applying the lock
+	struct timespec start_1, stop_1, stop_2, stop_3;
+	uint64_t accum_1 = 0, accum_2 = 0, accum_3 = 0, accum_4 = 0;
+	
+	// Create a new node with given page number,
+	// And add the new node to the front of queue
+	QNode* temp = newQNode(queue, hash, pageNumber);
 
-		if( clock_gettime( CLOCK_REALTIME, &start_1) == -1 ) {
+	if( clock_gettime( CLOCK_REALTIME, &start_1) == -1 ) {
+		perror( "clock gettime" );
+		// return EXIT_FAILURE;
+	}
+
+	pthread_spin_lock(&LRU_lock);
+
+	if( clock_gettime( CLOCK_REALTIME, &stop_1) == -1 ) {
+		perror( "clock gettime" );
+		// return EXIT_FAILURE;
+	}
+
+	temp->next = queue->front;
+	temp->pageNumber = pageNumber;
+
+	// If queue is empty, change both front and rear pointers
+	if (isQueueEmpty(queue))
+		queue->rear = queue->front = temp;
+	else // Else change the front
+	{
+		queue->front->prev = temp;
+		queue->front = temp;
+	}
+	queue->count++;
+
+	if( clock_gettime( CLOCK_REALTIME, &stop_2) == -1 ) {
 			perror( "clock gettime" );
 			// return EXIT_FAILURE;
-		}
+	}
+	pthread_spin_unlock(&LRU_lock);
+	
+	if( clock_gettime( CLOCK_REALTIME, &stop_3) == -1 ) {
+			perror( "clock gettime" );
+			// return EXIT_FAILURE;
+	}
 
-		pthread_spin_lock(&LRU_lock);
+	accum_1 = (uint64_t)(( stop_1.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_1.tv_nsec - start_1.tv_nsec);
+	accum_2 = (uint64_t)(( stop_2.tv_sec - stop_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_2.tv_nsec - stop_1.tv_nsec);
+	accum_3 = (uint64_t)(( stop_3.tv_sec - stop_2.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - stop_2.tv_nsec);
+	accum_4 = (uint64_t)(( stop_3.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - start_1.tv_nsec);
 
-        if( clock_gettime( CLOCK_REALTIME, &stop_1) == -1 ) {
-            perror( "clock gettime" );
-            // return EXIT_FAILURE;
-        }
-
-		temp->next = queue->front;
-		temp->pageNumber = pageNumber;
-
-		// If queue is empty, change both front and rear pointers
-		if (isQueueEmpty(queue))
-			queue->rear = queue->front = temp;
-		else // Else change the front
-		{
-			queue->front->prev = temp;
-			queue->front = temp;
-		}
-		queue->count++;
-
-		if( clock_gettime( CLOCK_REALTIME, &stop_2) == -1 ) {
-				perror( "clock gettime" );
-				// return EXIT_FAILURE;
-		}
-		pthread_spin_unlock(&LRU_lock);
-		
-		if( clock_gettime( CLOCK_REALTIME, &stop_3) == -1 ) {
-				perror( "clock gettime" );
-				// return EXIT_FAILURE;
-		}
-
-		accum_1 = (uint64_t)(( stop_1.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_1.tv_nsec - start_1.tv_nsec);
-        accum_2 = (uint64_t)(( stop_2.tv_sec - stop_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_2.tv_nsec - stop_1.tv_nsec);
-        accum_3 = (uint64_t)(( stop_3.tv_sec - stop_2.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - stop_2.tv_nsec);
-        accum_4 = (uint64_t)(( stop_3.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - start_1.tv_nsec);
-
-		printf("> Time taken b/w lock to *ALLOCATE* page number: %d is lock : %ld main_logic : %ld unlock : %ld access call : %ld\n",queue->front->pageNumber, accum_1, accum_2, accum_3, accum_4);
-		return temp;
+	printf("> Time taken b/w lock to *ALLOCATE* page number: %d is lock : %ld main_logic : %ld unlock : %ld access call : %ld\n",queue->front->pageNumber, accum_1, accum_2, accum_3, accum_4);
+	return temp;
 }
 
 // A utility function to access a pageNumber present in cache
 void access_node(Queue* queue, Hash* hash, QNode* reqPage) { //change parameters
 		
-		// record the time taken before applying the lock
-		struct timespec start_1, stop_1, stop_2, stop_3;
-        uint64_t accum_1 = 0, accum_2 = 0, accum_3 = 0, accum_4 = 0;
+	// record the time taken before applying the lock
+	struct timespec start_1, stop_1, stop_2, stop_3;
+	uint64_t accum_1 = 0, accum_2 = 0, accum_3 = 0, accum_4 = 0;
 
-		if( clock_gettime( CLOCK_REALTIME, &start_1) == -1 ) {
+	if( clock_gettime( CLOCK_REALTIME, &start_1) == -1 ) {
+		perror( "clock gettime" );
+		// return EXIT_FAILURE;
+	}
+
+	pthread_spin_lock(&LRU_lock);
+
+	if( clock_gettime( CLOCK_REALTIME, &stop_1) == -1 ) {
+		perror( "clock gettime" );
+		// return EXIT_FAILURE;
+	}
+	
+	// if the requested pagenumber is already infront of queue do nothing
+	if (reqPage == queue->front) {}
+		// printf(" *** Page number: %d already infront of the cache \n",reqPage->pageNumber);
+	else {
+		// Unlink rquested page from its current location in queue
+		reqPage->prev->next = reqPage->next;
+		if (reqPage->next)
+			reqPage->next->prev = reqPage->prev;
+
+		// If the requested page is rear, then change rear
+		// as this node will be moved to front
+		if (reqPage == queue->rear) {
+			queue->rear = reqPage->prev;
+			queue->rear->next = NULL;
+		}
+		// Put the requested page before current front
+		reqPage->next = queue->front;
+		reqPage->prev = NULL;
+
+		// Change prev of current front
+		reqPage->next->prev = reqPage;
+
+		// Change front to the requested page
+		queue->front = reqPage;
+		// printf("\n *** PageNumber already present in cache: %p // content: %d \n",reqPage,queue->front->pageNumber );
+	}
+
+	if( clock_gettime( CLOCK_REALTIME, &stop_2) == -1 ) {
 			perror( "clock gettime" );
 			// return EXIT_FAILURE;
-		}
+	}
+	pthread_spin_unlock(&LRU_lock);
 
-        pthread_spin_lock(&LRU_lock);
+	if( clock_gettime( CLOCK_REALTIME, &stop_3) == -1 ) {
+			perror( "clock gettime" );
+			// return EXIT_FAILURE;
+	}
 
-        if( clock_gettime( CLOCK_REALTIME, &stop_1) == -1 ) {
-            perror( "clock gettime" );
-            // return EXIT_FAILURE;
-        }
-		
-		// if the requested pagenumber is already infront of queue do nothing
-	    if (reqPage == queue->front) {}
-			// printf(" *** Page number: %d already infront of the cache \n",reqPage->pageNumber);
-		else {
-			// Unlink rquested page from its current location in queue
-			reqPage->prev->next = reqPage->next;
-			if (reqPage->next)
-				reqPage->next->prev = reqPage->prev;
+	accum_1 = (uint64_t)(( stop_1.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_1.tv_nsec - start_1.tv_nsec);
+	accum_2 = (uint64_t)(( stop_2.tv_sec - stop_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_2.tv_nsec - stop_1.tv_nsec);
+	accum_3 = (uint64_t)(( stop_3.tv_sec - stop_2.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - stop_2.tv_nsec);
+	accum_4 = (uint64_t)(( stop_3.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - start_1.tv_nsec);
 
-			// If the requested page is rear, then change rear
-			// as this node will be moved to front
-			if (reqPage == queue->rear) {
-				queue->rear = reqPage->prev;
-				queue->rear->next = NULL;
-			}
-			// Put the requested page before current front
-			reqPage->next = queue->front;
-			reqPage->prev = NULL;
-
-			// Change prev of current front
-			reqPage->next->prev = reqPage;
-
-			// Change front to the requested page
-			queue->front = reqPage;
-			// printf("\n *** PageNumber already present in cache: %p // content: %d \n",reqPage,queue->front->pageNumber );
-		}
-
-		if( clock_gettime( CLOCK_REALTIME, &stop_2) == -1 ) {
-				perror( "clock gettime" );
-				// return EXIT_FAILURE;
-		}
-        pthread_spin_unlock(&LRU_lock);
-
-        if( clock_gettime( CLOCK_REALTIME, &stop_3) == -1 ) {
-                perror( "clock gettime" );
-                // return EXIT_FAILURE;
-        }
-
-		accum_1 = (uint64_t)(( stop_1.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_1.tv_nsec - start_1.tv_nsec);
-        accum_2 = (uint64_t)(( stop_2.tv_sec - stop_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_2.tv_nsec - stop_1.tv_nsec);
-        accum_3 = (uint64_t)(( stop_3.tv_sec - stop_2.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - stop_2.tv_nsec);
-        accum_4 = (uint64_t)(( stop_3.tv_sec - start_1.tv_sec )*(uint64_t)BILLION) + (uint64_t)( stop_3.tv_nsec - start_1.tv_nsec);
-
-		printf("> Time taken b/w lock to *ACCESS* page number: %d is lock : %ld main_logic : %ld unlock : %ld access call : %ld\n",queue->front->pageNumber, accum_1, accum_2, accum_3, accum_4);
+	printf("> Time taken b/w lock to *ACCESS* page number: %d is lock : %ld main_logic : %ld unlock : %ld access call : %ld\n",queue->front->pageNumber, accum_1, accum_2, accum_3, accum_4);
 }
 
 // A utility function to delete a pageNumber from cache

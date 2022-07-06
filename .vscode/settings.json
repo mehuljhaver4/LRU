@@ -83,7 +83,9 @@
         "stdio.h": "c",
         "string.h": "c",
         "pthread.h": "c",
-        "errno.h": "c"
+        "errno.h": "c",
+        "utils2.h": "c",
+        "bufferpool.h": "c"
     },
     "C_Cpp.errorSquiggles": "Disabled"
 }

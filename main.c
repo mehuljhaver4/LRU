@@ -69,7 +69,6 @@ void *thread_fun(void *ThreadID){
     return NULL;
 }
 
-
 int main() {
     buffer_pool();
     print_buffer_pool(root);
@@ -80,24 +79,24 @@ int main() {
     q = createQueue(CACHESPACE);
     hash = createHash(HASHSPACE);
 
-    if (pthread_spin_init(&buffer_lock, NULL) != 0) {
+    if (pthread_spin_init(&buffer_lock, 0) != 0) {
         printf("\n spin buffer has failed\n");
         return 1;
     }
 
-    if (pthread_spin_init(&LRU_lock, NULL) != 0) {
+    if (pthread_spin_init(&LRU_lock, 0) != 0) {
         printf("\n spin allocate has failed\n");
         return 1;
     }
 
-    if (pthread_spin_init(&hashtbl_lock, NULL) != 0) {
+    if (pthread_spin_init(&hashtbl_lock, 0) != 0) {
         printf("\n spin hastbl has failed\n");
         return 1;
     }
 
    for( i = 0; i < THREADS; i++ ) {
         printf("\n main() : creating thread: %d \n",i);
-        rc = pthread_create(&threads[i], NULL, thread_fun, (void *)i);
+        rc = pthread_create(&threads[i], 0, thread_fun, (void *) (intptr_t) i);
         if (rc) {
             printf("Error:unable to create thread, %d\n", rc);
             exit(-1);
@@ -113,12 +112,9 @@ int main() {
 
     DisplayCache(q,hash);
 
-    // printf("\nBefore free() \n");
-    // print_buffer_pool(root);
-
     // delete 6
     QNode* delPage = hash->array[6];
-    buffer_node* free_buffer = free_node(q,delPage);
+    buffer_node* free_buffer = (buffer_node *)free_node(q,delPage);
     printf("Freed buffer %p\n",free_buffer);
     put_buffer(&root,free_buffer);
 
@@ -134,18 +130,12 @@ int main() {
 
     // delete 10
     QNode* delPage2 = hash->array[10];
-    buffer_node* free_buffer2 = free_node(q,delPage2);
+    buffer_node* free_buffer2 = (buffer_node *)free_node(q,delPage2);
     printf("Freed buffer %p\n",free_buffer2);
     put_buffer(&root,free_buffer2);
-
-
-
 
     DisplayCache(q,hash);
 
 
     return SUCCESS;
 }
-
-
-
