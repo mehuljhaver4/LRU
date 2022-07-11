@@ -9,6 +9,8 @@ int counter;
 int ret;
 pthread_spinlock_t lock;
 
+
+
 void* trythis(void* arg)
 {
   // int lock1 = pthread_spin_trylock(&lock);
