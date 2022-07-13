@@ -105,7 +105,7 @@ int buffer_pool() {
 // A utility function to add the buffer back to the buffer pool
 // after deleting a pageNumber from cache.
 buffer_node* put_buffer(buffer_node **root, buffer_node* free_buffer) {
-	// pthread_spin_lock(&buffer_lock);
+	pthread_spin_lock(&buffer_lock);
 
 	buffer_node* new_buffer = free_buffer;
 	buffer_node* lastNode = *root;
@@ -119,13 +119,12 @@ buffer_node* put_buffer(buffer_node **root, buffer_node* free_buffer) {
 	new_buffer->value = 0; // need to decide what to do with value. 
 	buffer_count++;
 
-	// pthread_spin_unlock(&buffer_lock);
+	pthread_spin_unlock(&buffer_lock);
 	return new_buffer;
 }
 
 // A utility function to get a buffer from buffer pool
-QNode* get_buffer(buffer_node* root)
-{	
+QNode* get_buffer(buffer_node* root) {	
     buffer_node* lastNode = root;
     QNode* temp = NULL;
 
@@ -153,8 +152,7 @@ QNode* get_buffer(buffer_node* root)
 
 
 // A utility function to create a queue
-Queue* createQueue()
-{
+Queue* createQueue() {
 	Queue* queue = (Queue*)malloc(CACHESPACE*sizeof(Queue));
 
 	// The queue is empty
@@ -164,14 +162,12 @@ Queue* createQueue()
 }
 
 // A utility function to check if queue is empty
-int isQueueEmpty(Queue* queue)
-{
+int isQueueEmpty(Queue* queue) {
 	return queue->rear == NULL;
 }
 
 // A utility function to create an empty Hash of given capacity
-Hash* createHash(int capacity)
-{
+Hash* createHash(int capacity) {
 	// Allocate memory for hash
 	Hash* hash = (Hash*)malloc(sizeof(Hash));
 	hash->capacity = capacity;
@@ -227,8 +223,8 @@ QNode* evict(Queue* queue, unsigned key_passed) {
 		queue->rear->next = NULL;
 	queue->count--; // decrement the number of full frames by 1
 
-	// pthread_spin_unlock(&leftNode->node_lock);
-	// pthread_spin_unlock(&lastNode->node_lock);
+	pthread_spin_unlock(&leftNode->node_lock);
+	pthread_spin_unlock(&lastNode->node_lock);
 	return lastNode;
 }
 
@@ -241,17 +237,17 @@ QNode* allocate_node(Queue* queue, Hash* hash, unsigned key_passed) {
 
 	if (buffer_count != 0 ) { 
         newBuff = get_buffer(root);	
-		newBuff->next = (QNode *)root->next;
+		// newBuff->next = (QNode *)root->next;
+		newBuff->next = NULL;
 		newBuff->prev = NULL;
 		newBuff->key = key_passed;
 		newBuff->ref_count++;
 		pthread_spin_unlock(&buffer_lock);
-		printf("Done allocating\n");
 		return newBuff;
 	}
 	pthread_spin_unlock(&buffer_lock);
 	newBuff = evict(queue, key_passed);
-	hash->array[key_passed] = NULL;  // should be outside mostly
+	// hash->array[key_passed] = NULL;  // should be outside mostly
 	return newBuff;
 }
 
@@ -283,6 +279,7 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage, unsigned key) { //cha
 			// check the position of the node
 			// if last then two locks. node and left
 			if (reqPage == queue->rear) {
+				printf("last node condition \n");
 				QNode* leftNode = reqPage->prev;
 				pthread_spin_init(&leftNode->node_lock , 0);
 				
@@ -297,8 +294,8 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage, unsigned key) { //cha
 					else
 						pthread_spin_unlock(&leftNode->node_lock);
 				}
-				//remove from hash
-				// hash->array[queue->rear->key] = NULL;
+				// remove from hash
+				hash->array[queue->rear->key] = NULL;
 				
 				//removing from LRU list
 				queue->rear = queue->rear->prev;
@@ -310,10 +307,12 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage, unsigned key) { //cha
 				printf("last node \n");
 				pthread_spin_unlock(&leftNode->node_lock);
 				pthread_spin_unlock(&reqPage->node_lock);
+				return;
 			}
 
 			// if root then two locks. node and right
 			else if (reqPage == queue->front) {
+				printf("head node condition\n");
 				QNode* rightNode = reqPage->next;
 				pthread_spin_init(&rightNode->node_lock , 0);
 				retry = 1;
@@ -332,14 +331,19 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage, unsigned key) { //cha
 				//remove from hash
 				// hash->array[queue->front->key] = NULL;
 				queue->front = reqPage->next;
+				reqPage->prev = NULL;
 				printf("head node \n");
 				pthread_spin_unlock(&rightNode->node_lock);
 				pthread_spin_unlock(&reqPage->node_lock);
+				return;
 			}
 			// Not root and rear, three locks.  Node left right
 			else {
+				printf("middle node condition \n");
+				printf("Left node is: %d and Right node is: %d \n",reqPage->prev->key, reqPage->next->key);
 				QNode* leftNode = reqPage->prev;
 				QNode* rightNode = reqPage->next;
+				
 				pthread_spin_init(&leftNode->node_lock , 0);
 				pthread_spin_init(&rightNode->node_lock , 0);
 
@@ -351,6 +355,7 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage, unsigned key) { //cha
 
 					if ((left_node_tl == 0) && (right_node_tl == 0)) {
 						retry = 0;
+						printf("Got right and left locks\n");
 						break;
 					}
 					else {
@@ -361,14 +366,18 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage, unsigned key) { //cha
 
 				//remove from hash
 				// hash->array[reqPage->key] = NULL;
-				reqPage->next->prev = reqPage->prev;
+				leftNode->next = rightNode;
+				rightNode->prev = leftNode;
 				reqPage->prev->next = reqPage->next;
+				reqPage->next->prev = reqPage->prev;
+
 				printf("middle node \n");
 				pthread_spin_unlock(&rightNode->node_lock);
 				pthread_spin_unlock(&leftNode->node_lock);
 				pthread_spin_unlock(&reqPage->node_lock);
+				return;
 			}
-			return;
+
 		}
 
 		else if (reqPage->ref_count > 0) { // node is being used by other thread
@@ -380,8 +389,8 @@ void access_node(Queue* queue, Hash* hash, QNode* reqPage, unsigned key) { //cha
 	else {
 		printf("ERROR... \n"); // use error
 		pthread_spin_unlock(&reqPage->node_lock);
+		return;
 	}
-
 }
 
 // A utility function to delete a pageNumber from cache
@@ -403,7 +412,7 @@ void free_node(Queue* queue, QNode* reqPage, unsigned key) {   // remove from ha
 
 	if (key == reqPage->key){ 
 		if (reqPage->ref_count > 0) {  // cannot free as node is being used by other thread
-			// pthread_spin_unlock(&reqPage->node_lock);
+			pthread_spin_unlock(&reqPage->node_lock);
 			printf("NODE IS IN USE!!! \n");  // return error statement
 		}
 		else if (reqPage->ref_count == 0) {
@@ -433,8 +442,8 @@ void free_node(Queue* queue, QNode* reqPage, unsigned key) {   // remove from ha
 				queue->front = reqPage->next;
 				put_buffer(&root, (buffer_node *)reqPage);
 
-				// pthread_spin_unlock(&rightNode->node_lock);
-				// pthread_spin_unlock(&reqPage->node_lock);
+				pthread_spin_unlock(&rightNode->node_lock);
+				pthread_spin_unlock(&reqPage->node_lock);
 				return;
 			}
 
@@ -469,8 +478,8 @@ void free_node(Queue* queue, QNode* reqPage, unsigned key) {   // remove from ha
 
 					put_buffer(&root, (buffer_node *)reqPage);
 
-					// pthread_spin_unlock(&leftNode->node_lock);
-					// pthread_spin_unlock(&reqPage->node_lock);
+					pthread_spin_unlock(&leftNode->node_lock);
+					pthread_spin_unlock(&reqPage->node_lock);
 					return;			
 			}
 
@@ -509,51 +518,61 @@ void free_node(Queue* queue, QNode* reqPage, unsigned key) {   // remove from ha
 }
 
 void access_done(Queue* queue, Hash* hash, QNode* reqPage) {
-	// int retry = 1;
-	// //take the main node lock for all scenarios
-	// while (retry != 0) {
-	// 	node_tl = pthread_spin_trylock(&reqPage->node_lock);
-	// 	if (node_tl == 0) {
-	// 		retry = 0;
-	// 		break;
-	// 	}
-	// 	else
-	// 		pthread_spin_unlock(&reqPage->node_lock);
-	// }
-	reqPage->ref_count--;
-
-	//take a lock on the present first node
-	QNode* rightNode = queue->front;
-	
-	if (reqPage->ref_count == 0) {
-		// retry = 1;
-		// // taking the right node lock
-		// while (retry != 0) {
-		// 	right_node_tl = pthread_spin_trylock(&rightNode->node_lock);
-		// 	printf("right_node_tl %d \n",right_node_tl);
-		// 	if (right_node_tl == 0) {
-		// 		retry = 0;
-		// 		break;
-		// 	}
-		// 	else
-		// 		pthread_spin_unlock(&rightNode->node_lock);
-		// }		
-		
-		// Add node to the front of LRU list.
-		// Put the requested page before current front
-		reqPage->next = queue->front;
-		reqPage->prev = NULL;
-
-		// If queue is empty, change both front and rear pointers
-		if (isQueueEmpty(queue))
-			queue->rear = queue->front = reqPage;
-		else // Else change the front
-		{
-			queue->front->prev = reqPage;
-			queue->front = reqPage;
+	printf("Inside access done\n");
+	pthread_spin_init(&reqPage->node_lock , 0);
+	int retry = 1;
+	//take the main node lock for all scenarios
+	while (retry != 0) {
+		node_tl = pthread_spin_trylock(&reqPage->node_lock);
+		if (node_tl == 0) {
+			retry = 0;
+			break;
 		}
-		queue->count++;
+		else
+			pthread_spin_unlock(&reqPage->node_lock);
 	}
-		// pthread_spin_unlock(&rightNode->node_lock);
-		// pthread_spin_unlock(&reqPage->node_lock);
+	printf("Got the node lock in access done\n");
+	reqPage->ref_count--;
+	if (reqPage->ref_count == 0) {
+		// If queue is empty, change both front and rear pointers
+		if (isQueueEmpty(queue)) {
+			queue->rear = queue->front = reqPage;
+			pthread_spin_unlock(&reqPage->node_lock);
+			return;
+		}
+		else {
+			// change the front
+			//take a lock on the present first node
+			QNode* rightNode = queue->front;
+			printf("Current front node is: %p -> %d\n",rightNode, rightNode->key);
+			pthread_spin_init(&rightNode->node_lock , 0);
+		
+			retry = 1;
+			// taking the right node lock
+			while (retry != 0) {
+				right_node_tl = pthread_spin_trylock(&rightNode->node_lock);
+				if (right_node_tl == 0) {
+					retry = 0;
+					break;
+				}
+				else
+					pthread_spin_unlock(&rightNode->node_lock);
+			}
+			printf("Got the right node lock in access done\n");		
+			// Add node to the front of LRU list.
+			// Put the requested page before current front
+				reqPage->prev = NULL;
+				reqPage->next = queue->front;
+				queue->front->prev = reqPage;
+				queue->front = reqPage;
+				queue->count++;
+			
+			pthread_spin_unlock(&rightNode->node_lock);
+			pthread_spin_unlock(&reqPage->node_lock);
+				printf("Success \n");
+				return;			
+		}		
+	}
+	pthread_spin_unlock(&reqPage->node_lock);
+	return;
 }
