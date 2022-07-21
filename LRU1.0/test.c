@@ -46,14 +46,21 @@ void *thread_fun(void *ThreadID){
         QNode* reqPage = hash->array[i];
 
         if (reqPage == NULL) {
-            QNode* new_allocate = allocate_node(q, hash, i);  
-            hash->array[i] = new_allocate; // Add page entry to hash also
+            pthread_spin_unlock(&hashtbl_lock);  
+            reqPage = allocate_node(q, hash, i);  
+            
+            pthread_spin_lock(&hashtbl_lock);  
+            hash->array[i] = reqPage; // Add page entry to hash also
+            pthread_spin_unlock(&hashtbl_lock);  
         }
 
-        else             
-            access_node(q,hash,reqPage);
+        else {
+            pthread_spin_unlock(&hashtbl_lock);
+            access_node(q,hash,reqPage);  
+        }
+            
 
-        pthread_spin_unlock(&hashtbl_lock);   
+        // pthread_spin_unlock(&hashtbl_lock);   
         sleep(pow(5.0, -3));  //sleeping for 5 milliseconds
     }
     printf("\n x--------- Thread: %ld job done-------------x \n", tid);    
@@ -114,18 +121,18 @@ int main() {
     buffer_node* free_buffer8 = (buffer_node *)free_node(q,delPage8);
     put_buffer(&root,free_buffer8);
 
-    // insert 6
-    QNode* new_pg = hash->array[6];
-    if (new_pg!= NULL) 
-           access_node(q,hash,new_pg);
-    else{
-            QNode* new_allocate2 = allocate_node(q, hash,6);  
-            // Add page entry to hash also
-            hash->array[6] = new_allocate2; 
-    }
+    // // insert 6
+    // QNode* new_pg = hash->array[6];
+    // if (new_pg!= NULL) 
+    //        access_node(q,hash,new_pg);
+    // else{
+    //         QNode* new_allocate2 = allocate_node(q, hash,6);  
+    //         // Add page entry to hash also
+    //         hash->array[6] = new_allocate2; 
+    // }
 
     DisplayCache(q);
-    print_buffer_pool(root);
+    // print_buffer_pool(root);
 
     return SUCCESS;
 }

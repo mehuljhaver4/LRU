@@ -8,7 +8,7 @@
             "name": "(gdb) Launch",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/test",
+            "program": "${workspaceFolder}/LRU2.0/lru",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",
@@ -28,12 +28,17 @@
                 }
             ]
         },
+        
         {
-            "name": "(gdb) Attach",
+            "name": "(gdb) Launch",
             "type": "cppdbg",
-            "request": "attach",
-            "program": "${workspaceFolder}/test",
-            "processId": "${command:pickProcess}",
+            "request": "launch",
+            "program": "/home/mehul.jhaver/project/LRU/LRU2.0/lru",
+            "args": [],
+            "stopAtEntry": false,
+            "cwd": "${fileDirname}",
+            "environment": [],
+            "externalConsole": false,
             "MIMode": "gdb",
             "setupCommands": [
                 {
@@ -47,7 +52,31 @@
                     "ignoreFailures": true
                 }
             ]
-        }
-
+        },
+        // {
+        //   "name": "main",
+        //   "type": "cppdbg",
+        //   "request": "launch",
+        //   "program": "/home/mehul.jhaver/project/LRU/LRU2.0/lru",
+        //   "args": [],
+        //   "stopAtEntry": true,
+        //   "cwd": "/home/mehul.jhaver/project/LRU/LRU2.0",
+        //   "environment": [],
+        //   "externalConsole": false,
+        //   "MIMode": "gdb",
+        //   "miDebuggerPath": "/usr/bin/gdb",
+        //   "setupCommands": [
+        //     {
+        //       "description": "Enable pretty-printing for gdb",
+        //       "text": "-enable-pretty-printing",
+        //       "ignoreFailures": true
+        //     },
+        //     {
+        //       "description": "Set Disassembly Flavor to Intel",
+        //       "text": "-gdb-set disassembly-flavor intel",
+        //       "ignoreFailures": true
+        //     }
+        //   ]
+        // }
     ]
 }

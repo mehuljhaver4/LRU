@@ -54,15 +54,19 @@ void *thread_fun(void *ThreadID){
         QNode* reqPage = hash->array[random];
 
         if (reqPage == NULL) {
-            QNode* new_allocate = allocate_node(q, hash, random);  
+            reqPage = allocate_node(q, hash, random);  
             // Add page entry to hash also
-            hash->array[random] = new_allocate; 
+            hash->array[random] = reqPage; 
+            pthread_spin_unlock(&hashtbl_lock);
         }
 
-        else            
+        else {
+            pthread_spin_unlock(&hashtbl_lock);    
             access_node(q,hash,reqPage);
+        }
     
-        pthread_spin_unlock(&hashtbl_lock);   
+        // pthread_spin_unlock(&hashtbl_lock);  
+        access_done(q,hash,reqPage); 
         sleep(pow(5.0, -3));  //sleeping for 5 milliseconds
     }
     printf("\n x--------- Thread: %ld job done-------------x \n", tid);    
@@ -112,27 +116,27 @@ int main() {
 
     DisplayCache(q);
 
-    // delete 6
-    QNode* delPage = hash->array[6];
-    buffer_node* free_buffer = (buffer_node *)free_node(q,delPage);
-    put_buffer(&root,free_buffer);
+    // // delete 6
+    // QNode* delPage = hash->array[6];
+    // buffer_node* free_buffer = (buffer_node *)free_node(q,delPage);
+    // put_buffer(&root,free_buffer);
 
-    // insert 5
-    QNode* new_pg = hash->array[5];
-    if (new_pg!= NULL) 
-           access_node(q,hash,new_pg);
-    else{
-            QNode* new_allocate2 = allocate_node(q, hash,5);  
-            // Add page entry to hash also
-            hash->array[5] = new_allocate2; 
-    }
+    // // insert 5
+    // QNode* new_pg = hash->array[5];
+    // if (new_pg!= NULL) 
+    //        access_node(q,hash,new_pg);
+    // else{
+    //         QNode* new_allocate2 = allocate_node(q, hash,5);  
+    //         // Add page entry to hash also
+    //         hash->array[5] = new_allocate2; 
+    // }
 
-    // delete 10
-    QNode* delPage2 = hash->array[10];
-    buffer_node* free_buffer2 = (buffer_node *)free_node(q,delPage2);
-    put_buffer(&root,free_buffer2);
+    // // delete 10
+    // QNode* delPage2 = hash->array[10];
+    // buffer_node* free_buffer2 = (buffer_node *)free_node(q,delPage2);
+    // put_buffer(&root,free_buffer2);
 
-    DisplayCache(q);
+    // DisplayCache(q);
 
     return SUCCESS;
 }

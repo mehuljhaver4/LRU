@@ -10,17 +10,17 @@
 
 #define SUCCESS 0
 #define FAIL -1
-// #define CACHESPACE 10240
-// #define HASHSPACE 1024
-// #define THREADS 1024
-// #define BILLION  1000000000L
-// atomic_int buffer_count;
-
-#define CACHESPACE 20
-#define HASHSPACE 10
-#define THREADS 6
+#define CACHESPACE 1024
+#define HASHSPACE 10240
+#define THREADS 1024
 #define BILLION  1000000000L
 atomic_int buffer_count;
+
+// #define CACHESPACE 20
+// #define HASHSPACE 10
+// #define THREADS 6
+// #define BILLION  1000000000L
+// atomic_int buffer_count;
 
 pthread_spinlock_t LRU_lock;
 pthread_spinlock_t buffer_lock;
@@ -169,15 +169,15 @@ QNode* newQNode(Queue* queue, Hash* hash, unsigned pageNumber)
 		
 		pthread_spin_unlock(&buffer_lock);
 
-        newBuff->next = (QNode *)root->next;
+        // newBuff->next = (QNode *)root->next;
+		newBuff->next = NULL;
         newBuff->prev = NULL;
-        newBuff->pageNumber = pageNumber;
+        // newBuff->pageNumber = pageNumber;
     }
 
 	else{ 
-			
 		pthread_spin_lock(&LRU_lock);
-
+		
 		hash->array[queue->rear->pageNumber] = NULL;
 		newBuff = deQueue(queue);
 		newBuff->pageNumber = pageNumber;

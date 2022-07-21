@@ -47,22 +47,34 @@ void *thread_fun(void *ThreadID){
     int rand_i = rand()%4; // random (0-4) number of operations
     
     for(int i = 0; i< rand_i; i++){
-        random = (rand()%(10)) + 1; 
+        random = (rand()%(1000)) + 1; 
+        // random = 1;
         printf("\n >>> Thread: %ld, Inserting page number: %d \n",tid, random);
 
         pthread_spin_lock(&hashtbl_lock);
         QNode* reqPage = hash->array[random];
 
         if (reqPage == NULL) {
-            QNode* new_allocate = allocate_node(q, hash, random);  
-            // Add page entry to hash also
-            hash->array[random] = new_allocate; 
+            pthread_spin_unlock(&hashtbl_lock); 
+            
+            reqPage = allocate_node(q, hash, random);  
+            
+            // Add page entry to hash 
+            pthread_spin_lock(&hashtbl_lock);
+
+            if (hash->array[random] == NULL)
+                hash->array[random] = reqPage; 
+            else
+                free_node(q,reqPage);
+            
+            pthread_spin_unlock(&hashtbl_lock);
         }
 
-        else            
-            access_node(q,hash,reqPage);
-    
-        pthread_spin_unlock(&hashtbl_lock);   
+        else{
+            pthread_spin_unlock(&hashtbl_lock);
+            access_node(q,hash,reqPage); 
+        }            
+          
         sleep(pow(5.0, -3));  //sleeping for 5 milliseconds
     }
     printf("\n x--------- Thread: %ld job done-------------x \n", tid);    
@@ -110,29 +122,29 @@ int main() {
     pthread_spin_destroy(&buffer_lock);
     pthread_spin_destroy(&hashtbl_lock);
 
-    DisplayCache(q);
+    // DisplayCache(q);
 
     // delete 6
     QNode* delPage = hash->array[6];
     buffer_node* free_buffer = (buffer_node *)free_node(q,delPage);
     put_buffer(&root,free_buffer);
 
-    // insert 5
-    QNode* new_pg = hash->array[5];
-    if (new_pg!= NULL) 
-           access_node(q,hash,new_pg);
-    else{
-            QNode* new_allocate2 = allocate_node(q, hash,5);  
-            // Add page entry to hash also
-            hash->array[5] = new_allocate2; 
-    }
+    // // insert 5
+    // QNode* new_pg = hash->array[5];
+    // if (new_pg!= NULL) 
+    //        access_node(q,hash,new_pg);
+    // else{
+    //         QNode* new_allocate2 = allocate_node(q, hash,5);  
+    //         // Add page entry to hash also
+    //         hash->array[5] = new_allocate2; 
+    // }
 
     // delete 10
     QNode* delPage2 = hash->array[10];
     buffer_node* free_buffer2 = (buffer_node *)free_node(q,delPage2);
     put_buffer(&root,free_buffer2);
 
-    DisplayCache(q);
+    // DisplayCache(q);
 
     return SUCCESS;
 }
