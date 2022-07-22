@@ -22,10 +22,10 @@ void print_buffer_pool(buffer_node *root) {
     printf("NULL\n");
 }
 
-void DisplayCache(Queue* Q) {
-    printf("\n\n****Final cache****\n\n ");
+void DisplayCache(Queue* Q, long tid) {
+    printf("\n\n****Final Cache (ThreadID: %ld)****\n\n",tid);
     
-    if (isQueueEmpty(Q)){
+    if (isQueueEmpty(Q)) {
         printf("Cache is empty\n");
     }
     else {
@@ -43,49 +43,48 @@ void *thread_fun(void *ThreadID){
     unsigned int random;
 
     printf("\n********** Using thread: %ld *************\n", tid);
-    // int rand_i = rand()%2; // random (0-4) number of operations
     
 
-        random = (rand()%(5)) + 1; 
-        printf("\n >>> Thread: %ld, Inserting page number: %d \n",tid, random);
+    random = (rand()%(5)) + 1; 
+    printf("\n >>> Thread: %ld, Inserting page number: %d \n",tid, random);
 
+    pthread_spin_lock(&hashtbl_lock);
+    QNode* reqPage = hash->array[random];  
+
+    if (reqPage == NULL) {
+        pthread_spin_unlock(&hashtbl_lock); 
+        
+        reqPage = allocate_node(q, hash, random, tid);  
+        
+        // Add page entry to hash 
         pthread_spin_lock(&hashtbl_lock);
-        QNode* reqPage = hash->array[random];  
 
-        if (reqPage == NULL) {
-            pthread_spin_unlock(&hashtbl_lock); 
-            
-            reqPage = allocate_node(q, hash, random, tid);  
-            
-            // Add page entry to hash 
-            pthread_spin_lock(&hashtbl_lock);
+        if (hash->array[random] == NULL)
+            hash->array[random] = reqPage; 
+        else
+            free_node(q,reqPage,random, tid);
+        
+        pthread_spin_unlock(&hashtbl_lock);
+    }
 
-            if (hash->array[random] == NULL)
-                hash->array[random] = reqPage; 
-            else
-                free_node(q,reqPage,random, tid);
-            
-            pthread_spin_unlock(&hashtbl_lock);
-        }
+    if (access_node(q,hash,reqPage,random, tid)== -1) {
+        reqPage = allocate_node(q, hash, random, tid);
+        
+        // Add page entry to hash
+        pthread_spin_lock(&hashtbl_lock);
 
-        if (access_node(q,hash,reqPage,random, tid)== -1) {
-            reqPage = allocate_node(q, hash, random, tid);
-            
-            // Add page entry to hash
-            pthread_spin_lock(&hashtbl_lock);
+        if (hash->array[random] == NULL)
+            hash->array[random] = reqPage; 
+        else
+            free_node(q,reqPage,random, tid);
 
-            if (hash->array[random] == NULL)
-                hash->array[random] = reqPage; 
-            else
-                free_node(q,reqPage,random, tid);
-
-            pthread_spin_unlock(&hashtbl_lock);
-            access_node(q,hash,reqPage,random, tid);
-        }
-                   
-        sleep(pow(5.0, -3));  //sleeping for 5 milliseconds
-        access_done(q,hash,reqPage, tid); 
-        DisplayCache(q);
+        pthread_spin_unlock(&hashtbl_lock);
+        access_node(q,hash,reqPage,random, tid);
+    }
+                
+    // sleep(pow(5.0, -3));  //sleeping for 5 milliseconds
+    access_done(q,hash,reqPage, tid); 
+    DisplayCache(q, tid);
         
     printf("\n x--------- Thread: %ld job done-------------x \n", tid);   
     return NULL;
@@ -127,7 +126,9 @@ int main() {
     // QNode* temp = NULL;
     // pthread_spin_destroy(&temp->node_lock);
 
- 
+     print_buffer_pool(root);
+    return SUCCESS;
+}
  
  
     // for (int i = 0; i<=19; i++) {
@@ -168,8 +169,7 @@ int main() {
     // for (int i=0; i<HASHSPACE; i++)
     //     printf("hash->array[%d]: %p \n",i, hash->array[i]);
 
-    DisplayCache(q);
-    print_buffer_pool(root);
-
-    return SUCCESS;
-}
+    // DisplayCache(q);
+//     print_buffer_pool(root);
+//     return SUCCESS;
+// }
