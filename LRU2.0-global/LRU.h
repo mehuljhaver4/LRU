@@ -15,7 +15,7 @@
 #define BILLION  1000000000L
 #define SUCCESS 0
 #define FAIL -1
-#define CACHESPACE 1024
+#define CACHESPACE 100
 #define HASHSPACE 10240
 #define THREADS 1024
 
@@ -26,18 +26,15 @@ atomic_int total_access;
 atomic_int access_done_time_avg;
 atomic_int total_access_done;
 atomic_int buffer_count;
-atomic_int node_tl;
-atomic_int left_node_tl;
-atomic_int right_node_tl;
 
 pthread_spinlock_t buffer_lock;
 pthread_spinlock_t hashtbl_lock;
+pthread_spinlock_t LRU_lock;
 
 typedef struct QNode {
 	struct QNode *prev, *next;
 	unsigned key;
 	atomic_int ref_count; 
-	pthread_spinlock_t node_lock;
 	// add data ptr
 } QNode; 
 

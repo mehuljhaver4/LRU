@@ -22,10 +22,9 @@ void *thread_fun(void *ThreadID){
     
     long tid = (long)ThreadID;
     unsigned int random;
-    // Each thread performs a random number of operations between 0-4
+
     for (int i= 0; i < rand() % 4; i++) {
         printf("\n********** Using thread: %ld *************\n", tid);
-        // inserting pageNumbers between 5-1000
         random = (rand() % (1000 - 5 + 1)) + 5;
         printf("\n >>> Thread: %ld, Inserting page number: %d \n",tid, random);
 
@@ -90,14 +89,19 @@ int main() {
         return 1;
     }
 
-   for (int i = 0; i < THREADS; i++) {
+    if (pthread_spin_init(&LRU_lock, 0) != 0) {
+        printf("\n spin LRU has failed\n");
+        return 1;
+    }
+
+   for( int i = 0; i < THREADS; i++ ) {
         printf("\n main() : creating thread: %d \n",i);
         rc = pthread_create(&threads[i], 0, thread_fun, (void *) (intptr_t) i);
         if (rc) {
             printf("Error:unable to create thread, %d\n", rc);
             exit(-1);
-        }
-   }
+      }
+   } 
 
     for( int i = 0; i < THREADS; i++ ) {
         pthread_join(threads[i], NULL);
@@ -105,27 +109,28 @@ int main() {
 
     pthread_spin_destroy(&buffer_lock);
     pthread_spin_destroy(&hashtbl_lock);
+    pthread_spin_destroy(&LRU_lock);
 
     // free
-    unsigned front = q->front->key;
-    unsigned middle = q->rear->prev->key;
-    unsigned last = q->rear->key;
+    int front = q->front->key;
+    int middle = q->rear->prev->key;
+    int last = q->rear->key;
     // free front node
     QNode* del_page_front = hash->array[front];
     printf("del_page_front : %p key: %d\n",del_page_front, del_page_front->key);
-    free_node(q,del_page_front,del_page_front->key);
+    free_node(q,del_page_front,front);
     hash->array[front] = NULL;
 
     // free middle node
     QNode* del_page_middle = hash->array[middle];
     printf("del_page_middle : %p key: %d\n",del_page_middle, del_page_middle->key);
-    free_node(q,del_page_middle,del_page_middle->key);
+    free_node(q,del_page_middle,middle);
     hash->array[middle] = NULL;
 
     // free last node
     QNode* del_page_last = hash->array[last];
     printf("del_page_last : %p key: %d\n",del_page_last, del_page_last->key);
-    free_node(q,del_page_last, del_page_last->key);
+    free_node(q,del_page_last,last);
     hash->array[last] = NULL;
 
 	allocation_time_avg = allocation_time_avg/total_allocations;
@@ -134,6 +139,5 @@ int main() {
 	printf("\n Total number of allocation calls: %d, Average time taken to allocate : %d\n",total_allocations, allocation_time_avg);
     printf("\n Total number of access calls: %d, Average time taken to access : %d\n",total_access, access_time_avg);
     printf("\n Total number of access_done calls: %d, Average time taken for access_done : %d\n",total_access_done ,access_done_time_avg);
-
     return SUCCESS;
 }
